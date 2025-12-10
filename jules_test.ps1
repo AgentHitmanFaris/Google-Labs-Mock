@@ -1,15 +1,27 @@
 # --- CONFIGURATION ---
-$apiKey = "AQ.Ab8RN6L2mDc2c9Sp3x00445QTiCZ5SnooWrvBE8FqBRYeb2WKw".Trim()
-
-
 $baseUrl = "https://jules.googleapis.com/v1alpha"
+
+# --- API KEY LOADING ---
+$keyFile = Join-Path $PSScriptRoot "key"
+
+if (-not (Test-Path $keyFile)) {
+    Write-Host "===============================================================" -ForegroundColor Red
+    Write-Host " [ERROR] KEY FILE MISSING" -ForegroundColor Yellow
+    Write-Host " Please create a file named 'key' in the same directory as this script" -ForegroundColor White
+    Write-Host " and paste your Google Cloud API Key inside it." -ForegroundColor White
+    Write-Host "===============================================================" -ForegroundColor Red
+    Pause
+    exit
+}
+
+$apiKey = Get-Content -Path $keyFile -Raw
+$apiKey = $apiKey.Trim()
 
 # --- SAFETY CHECK ---
 if ($apiKey -eq "PASTE_YOUR_REAL_GOOGLE_API_KEY_HERE" -or $apiKey -eq "API" -or [string]::IsNullOrWhiteSpace($apiKey)) {
     Write-Host "===============================================================" -ForegroundColor Red
-    Write-Host " [ERROR] API KEY MISSING" -ForegroundColor Yellow
-    Write-Host " You must open this script and replace 'API' at the top" -ForegroundColor White
-    Write-Host " with your actual Google Cloud API Key." -ForegroundColor White
+    Write-Host " [ERROR] INVALID API KEY" -ForegroundColor Yellow
+    Write-Host " The 'key' file must contain your actual Google Cloud API Key." -ForegroundColor White
     Write-Host "===============================================================" -ForegroundColor Red
     Pause
     exit
@@ -29,6 +41,10 @@ $global:globalSessionId = $null
 .DESCRIPTION
     Clears the host screen and prints the application title and the current session ID if one is active.
     This function is used to refresh the UI and provide context to the user.
+
+.OUTPUTS
+    None
+        This function writes directly to the host and does not return a value.
 #>
 function Show-Header {
     Clear-Host
@@ -103,6 +119,10 @@ function Fetch-RepositoryData {
     - Displaying code changes and terminal output.
     - Sending user approvals for plans.
     - Sending user replies to the agent.
+
+.OUTPUTS
+    None
+        This function does not return a value. It runs until interrupted.
 #>
 function Start-Chat-Loop {
     if ([string]::IsNullOrWhiteSpace($global:globalSessionId)) {
@@ -239,6 +259,10 @@ function Start-Chat-Loop {
 .PARAMETER repos
     An array of repository objects obtained from Fetch-RepositoryData.
     This parameter is required to allow the user to select a repository.
+
+.OUTPUTS
+    None
+        This function does not return a value. It modifies the global session state.
 #>
 function Start-New-Session {
     param ($repos)
@@ -254,10 +278,10 @@ function Start-New-Session {
     }
     $sel = Read-Host " > Number"
 
-    if ($sel -notmatch '^\d+$' -or $sel -lt 1 -or $sel -gt $repos.Count) {
+    if ($sel -notmatch '^\d+$' -or [int]$sel -lt 1 -or [int]$sel -gt $repos.Count) {
         Write-Host "[!] Invalid selection." -ForegroundColor Red; Start-Sleep 1; return
     }
-    $target = $repos[$sel-1]
+    $target = $repos[[int]$sel-1]
 
     # 2. Select Branch
     $defBranch = $null
@@ -331,6 +355,10 @@ function Start-New-Session {
     Fetches a list of recent sessions from the API and displays them to the user.
     The user can then select a session to resume. The session state (ACTIVE, WAIT, DONE, FAIL) is indicated by color.
     Upon selection, the session ID is updated globally and the chat loop is started.
+
+.OUTPUTS
+    None
+        This function does not return a value. It modifies the global session state.
 #>
 function Restore-Session {
     Show-Header
