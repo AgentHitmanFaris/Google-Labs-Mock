@@ -1,6 +1,5 @@
 # --- CONFIGURATION ---
-$apiKey = "AQ.Ab8RN6L2mDc2c9Sp3x00445QTiCZ5SnooWrvBE8FqBRYeb2WKw".Trim()
-
+$apiKey = "YOUR_API_KEY_HERE"
 
 $baseUrl = "https://jules.googleapis.com/v1alpha"
 
@@ -29,6 +28,10 @@ $global:globalSessionId = $null
 .DESCRIPTION
     Clears the host screen and prints the application title and the current session ID if one is active.
     This function is used to refresh the UI and provide context to the user.
+
+.OUTPUTS
+    None
+        This function writes directly to the host and does not return a value.
 #>
 function Show-Header {
     Clear-Host
@@ -103,6 +106,10 @@ function Fetch-RepositoryData {
     - Displaying code changes and terminal output.
     - Sending user approvals for plans.
     - Sending user replies to the agent.
+
+.OUTPUTS
+    None
+        This function does not return a value. It runs until interrupted.
 #>
 function Start-Chat-Loop {
     if ([string]::IsNullOrWhiteSpace($global:globalSessionId)) {
@@ -239,6 +246,10 @@ function Start-Chat-Loop {
 .PARAMETER repos
     An array of repository objects obtained from Fetch-RepositoryData.
     This parameter is required to allow the user to select a repository.
+
+.OUTPUTS
+    None
+        This function does not return a value. It modifies the global session state.
 #>
 function Start-New-Session {
     param ($repos)
@@ -254,10 +265,10 @@ function Start-New-Session {
     }
     $sel = Read-Host " > Number"
 
-    if ($sel -notmatch '^\d+$' -or $sel -lt 1 -or $sel -gt $repos.Count) {
+    if ($sel -notmatch '^\d+$' -or [int]$sel -lt 1 -or [int]$sel -gt $repos.Count) {
         Write-Host "[!] Invalid selection." -ForegroundColor Red; Start-Sleep 1; return
     }
-    $target = $repos[$sel-1]
+    $target = $repos[[int]$sel-1]
 
     # 2. Select Branch
     $defBranch = $null
@@ -331,6 +342,10 @@ function Start-New-Session {
     Fetches a list of recent sessions from the API and displays them to the user.
     The user can then select a session to resume. The session state (ACTIVE, WAIT, DONE, FAIL) is indicated by color.
     Upon selection, the session ID is updated globally and the chat loop is started.
+
+.OUTPUTS
+    None
+        This function does not return a value. It modifies the global session state.
 #>
 function Restore-Session {
     Show-Header
