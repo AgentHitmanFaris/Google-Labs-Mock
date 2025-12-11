@@ -327,8 +327,12 @@ function Start-New-Session {
     # Default (2) needs no hint, it's the standard behavior.
 
     # 4. Instructions
-    $prompt = Read-Host " > Instructions"
-    if ([string]::IsNullOrWhiteSpace($prompt)) { $prompt = "Hello" }
+    Write-Host " > Instructions (e.g., 'Fix the bug in login.py', 'Add unit tests')" -ForegroundColor Gray
+    $prompt = Read-Host " > "
+    if ([string]::IsNullOrWhiteSpace($prompt)) {
+        Write-Host " [!] No instructions provided. Saying 'Hello' to Jules." -ForegroundColor Yellow
+        $prompt = "Hello"
+    }
 
     # Combine Hint + Prompt
     $finalPrompt = "$modeHint $prompt"
@@ -441,19 +445,37 @@ while ($true) {
         $monitorLabel = "RESUME CHAT (Current: ...$shortId)"
     }
 
-    Write-Host " [1] SYNC REPOS"
+    Write-Host " [1] REFRESH REPOS (Cached: $(if ($cachedRepos) { $cachedRepos.Count } else { 0 }))"
     Write-Host " [2] START NEW SESSION"
-    Write-Host " [3] $monitorLabel"
-    Write-Host " [6] RESTORE RECENT SESSION" -ForegroundColor Yellow
+
+    if ($global:globalSessionId) {
+        Write-Host " [3] $monitorLabel"
+    }
+
+    Write-Host " [4] RESTORE RECENT SESSION" -ForegroundColor Yellow
     Write-Host " [Q] QUIT"
 
     $choice = Read-Host " > Select"
 
     switch ($choice) {
-        "1" { $cachedRepos = Fetch-RepositoryData; Write-Host "Synced $($cachedRepos.Count) repos." -ForegroundColor Green; Start-Sleep 1 }
-        "2" { if ($cachedRepos) { Start-New-Session -repos $cachedRepos } else { Write-Host "Sync first." -ForegroundColor Red; Start-Sleep 1 } }
-        "3" { Start-Chat-Loop }
-        "6" { Restore-Session }
+        "1" {
+            $cachedRepos = Fetch-RepositoryData
+            Write-Host "Synced $($cachedRepos.Count) repos." -ForegroundColor Green
+            Start-Sleep 1
+        }
+        "2" {
+            if (-not $cachedRepos) {
+                $cachedRepos = Fetch-RepositoryData
+            }
+            if ($cachedRepos) {
+                Start-New-Session -repos $cachedRepos
+            } else {
+                Write-Host " [!] No repositories found. check connection." -ForegroundColor Red
+                Start-Sleep 2
+            }
+        }
+        "3" { if ($global:globalSessionId) { Start-Chat-Loop } else { Write-Host " [!] No active session." -ForegroundColor Red; Start-Sleep 1 } }
+        "4" { Restore-Session }
         "Q" { exit }
         "q" { exit }
     }
