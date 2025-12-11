@@ -1,14 +1,27 @@
 # --- CONFIGURATION ---
-$apiKey = "YOUR_API_KEY_HERE"
-
 $baseUrl = "https://jules.googleapis.com/v1alpha"
+
+# --- API KEY LOADING ---
+$keyFile = Join-Path $PSScriptRoot "key"
+
+if (-not (Test-Path $keyFile)) {
+    Write-Host "===============================================================" -ForegroundColor Red
+    Write-Host " [ERROR] KEY FILE MISSING" -ForegroundColor Yellow
+    Write-Host " Please create a file named 'key' in the same directory as this script" -ForegroundColor White
+    Write-Host " and paste your Google Cloud API Key inside it." -ForegroundColor White
+    Write-Host "===============================================================" -ForegroundColor Red
+    Pause
+    exit
+}
+
+$apiKey = Get-Content -Path $keyFile -Raw
+$apiKey = $apiKey.Trim()
 
 # --- SAFETY CHECK ---
 if ($apiKey -eq "PASTE_YOUR_REAL_GOOGLE_API_KEY_HERE" -or $apiKey -eq "API" -or [string]::IsNullOrWhiteSpace($apiKey)) {
     Write-Host "===============================================================" -ForegroundColor Red
-    Write-Host " [ERROR] API KEY MISSING" -ForegroundColor Yellow
-    Write-Host " You must open this script and replace 'API' at the top" -ForegroundColor White
-    Write-Host " with your actual Google Cloud API Key." -ForegroundColor White
+    Write-Host " [ERROR] INVALID API KEY" -ForegroundColor Yellow
+    Write-Host " The 'key' file must contain your actual Google Cloud API Key." -ForegroundColor White
     Write-Host "===============================================================" -ForegroundColor Red
     Pause
     exit
