@@ -1,15 +1,27 @@
 # --- CONFIGURATION ---
-$apiKey = "AQ.Ab8RN6L2mDc2c9Sp3x00445QTiCZ5SnooWrvBE8FqBRYeb2WKw".Trim()
-
-
 $baseUrl = "https://jules.googleapis.com/v1alpha"
+
+# --- API KEY LOADING ---
+$keyFile = Join-Path $PSScriptRoot "key"
+
+if (-not (Test-Path $keyFile)) {
+    Write-Host "===============================================================" -ForegroundColor Red
+    Write-Host " [ERROR] KEY FILE MISSING" -ForegroundColor Yellow
+    Write-Host " Please create a file named 'key' in the same directory as this script" -ForegroundColor White
+    Write-Host " and paste your Google Cloud API Key inside it." -ForegroundColor White
+    Write-Host "===============================================================" -ForegroundColor Red
+    Pause
+    exit
+}
+
+$apiKey = Get-Content -Path $keyFile -Raw
+$apiKey = $apiKey.Trim()
 
 # --- SAFETY CHECK ---
 if ($apiKey -eq "PASTE_YOUR_REAL_GOOGLE_API_KEY_HERE" -or $apiKey -eq "API" -or [string]::IsNullOrWhiteSpace($apiKey)) {
     Write-Host "===============================================================" -ForegroundColor Red
-    Write-Host " [ERROR] API KEY MISSING" -ForegroundColor Yellow
-    Write-Host " You must open this script and replace 'API' at the top" -ForegroundColor White
-    Write-Host " with your actual Google Cloud API Key." -ForegroundColor White
+    Write-Host " [ERROR] INVALID API KEY" -ForegroundColor Yellow
+    Write-Host " The 'key' file must contain your actual Google Cloud API Key." -ForegroundColor White
     Write-Host "===============================================================" -ForegroundColor Red
     Pause
     exit
@@ -29,6 +41,10 @@ $global:globalSessionId = $null
 .DESCRIPTION
     Clears the host screen and prints the application title and the current session ID if one is active.
     This function is used to refresh the UI and provide context to the user.
+
+.OUTPUTS
+    None
+        This function writes directly to the host and does not return a value.
 #>
 function Show-Header {
     Clear-Host
@@ -103,6 +119,10 @@ function Fetch-RepositoryData {
     - Displaying code changes and terminal output.
     - Sending user approvals for plans.
     - Sending user replies to the agent.
+
+.OUTPUTS
+    None
+        This function does not return a value. It runs until interrupted.
 #>
 function Start-Chat-Loop {
     if ([string]::IsNullOrWhiteSpace($global:globalSessionId)) {
@@ -239,6 +259,10 @@ function Start-Chat-Loop {
 .PARAMETER repos
     An array of repository objects obtained from Fetch-RepositoryData.
     This parameter is required to allow the user to select a repository.
+
+.OUTPUTS
+    None
+        This function does not return a value. It modifies the global session state.
 #>
 function Start-New-Session {
     param ($repos)
@@ -252,12 +276,16 @@ function Start-New-Session {
         Write-Host " [$i] $n"
         $i++
     }
-    $sel = Read-Host " > Number"
+    while ($true) {
+        $sel = Read-Host " > Number (or 'Q' to Cancel)"
+        if ($sel -eq 'Q' -or $sel -eq 'q') { return }
 
-    if ($sel -notmatch '^\d+$' -or $sel -lt 1 -or $sel -gt $repos.Count) {
-        Write-Host "[!] Invalid selection." -ForegroundColor Red; Start-Sleep 1; return
+        if ($sel -match '^\d+$' -and [int]$sel -ge 1 -and [int]$sel -le $repos.Count) {
+            $target = $repos[[int]$sel-1]
+            break
+        }
+        Write-Host "[!] Invalid selection. Please try again." -ForegroundColor Red
     }
-    $target = $repos[$sel-1]
 
     # 2. Select Branch
     $defBranch = $null
@@ -279,7 +307,14 @@ function Start-New-Session {
     Write-Host " [1] Interactive (Chat first, understand goals)" -ForegroundColor White
     Write-Host " [2] Review (Generate plan, wait for approval)" -ForegroundColor White
     Write-Host " [3] Start (Get started without plan approval)" -ForegroundColor White
-    $modeSel = Read-Host " > Number (Default: 2)"
+
+    $modeSel = ""
+    while ($true) {
+        $inputSel = Read-Host " > Number (Default: 2)"
+        if ([string]::IsNullOrWhiteSpace($inputSel)) { $modeSel = "2"; break }
+        if ($inputSel -in "1", "2", "3") { $modeSel = $inputSel; break }
+        Write-Host " [!] Invalid mode. Please select 1, 2, or 3." -ForegroundColor Red
+    }
 
     # Mode Logic: We inject a "System Hint" to force Jules to behave
     $modeHint = ""
@@ -292,8 +327,12 @@ function Start-New-Session {
     # Default (2) needs no hint, it's the standard behavior.
 
     # 4. Instructions
-    $prompt = Read-Host " > Instructions"
-    if ([string]::IsNullOrWhiteSpace($prompt)) { $prompt = "Hello" }
+    Write-Host " > Instructions (e.g., 'Fix the bug in login.py', 'Add unit tests')" -ForegroundColor Gray
+    $prompt = Read-Host " > "
+    if ([string]::IsNullOrWhiteSpace($prompt)) {
+        Write-Host " [!] No instructions provided. Saying 'Hello' to Jules." -ForegroundColor Yellow
+        $prompt = "Hello"
+    }
 
     # Combine Hint + Prompt
     $finalPrompt = "$modeHint $prompt"
@@ -331,6 +370,10 @@ function Start-New-Session {
     Fetches a list of recent sessions from the API and displays them to the user.
     The user can then select a session to resume. The session state (ACTIVE, WAIT, DONE, FAIL) is indicated by color.
     Upon selection, the session ID is updated globally and the chat loop is started.
+
+.OUTPUTS
+    None
+        This function does not return a value. It modifies the global session state.
 #>
 function Restore-Session {
     Show-Header
@@ -363,21 +406,25 @@ function Restore-Session {
         }
 
         Write-Host ""
-        $sel = Read-Host " > Select Number to Restore"
+        while ($true) {
+            $sel = Read-Host " > Select Number to Restore (or 'Q' to Cancel)"
+            if ($sel -eq 'Q' -or $sel -eq 'q') { return }
 
-        if ($sel -match '^\d+$') {
-            $idx = [int]$sel - 1
-            if ($idx -ge 0 -and $idx -lt $list.Count) {
-                $selectedSession = $list[$idx]
-                $global:globalSessionId = $selectedSession.name
-                Write-Host " [OK] Restored: $global:globalSessionId" -ForegroundColor Green
-                Start-Sleep 1
-                Start-Chat-Loop
+            if ($sel -match '^\d+$') {
+                $idx = [int]$sel - 1
+                if ($idx -ge 0 -and $idx -lt $list.Count) {
+                    $selectedSession = $list[$idx]
+                    $global:globalSessionId = $selectedSession.name
+                    Write-Host " [OK] Restored: $global:globalSessionId" -ForegroundColor Green
+                    Start-Sleep 1
+                    Start-Chat-Loop
+                    break
+                } else {
+                     Write-Host " [X] Selection out of range." -ForegroundColor Red
+                }
             } else {
-                 Write-Host " [X] Selection out of range." -ForegroundColor Red; Start-Sleep 1
+                Write-Host " [X] Invalid selection." -ForegroundColor Red
             }
-        } else {
-            Write-Host " [X] Invalid selection." -ForegroundColor Red; Start-Sleep 1
         }
     }
     catch {
@@ -398,19 +445,37 @@ while ($true) {
         $monitorLabel = "RESUME CHAT (Current: ...$shortId)"
     }
 
-    Write-Host " [1] SYNC REPOS"
+    Write-Host " [1] REFRESH REPOS (Cached: $(if ($cachedRepos) { $cachedRepos.Count } else { 0 }))"
     Write-Host " [2] START NEW SESSION"
-    Write-Host " [3] $monitorLabel"
-    Write-Host " [6] RESTORE RECENT SESSION" -ForegroundColor Yellow
+
+    if ($global:globalSessionId) {
+        Write-Host " [3] $monitorLabel"
+    }
+
+    Write-Host " [4] RESTORE RECENT SESSION" -ForegroundColor Yellow
     Write-Host " [Q] QUIT"
 
     $choice = Read-Host " > Select"
 
     switch ($choice) {
-        "1" { $cachedRepos = Fetch-RepositoryData; Write-Host "Synced $($cachedRepos.Count) repos." -ForegroundColor Green; Start-Sleep 1 }
-        "2" { if ($cachedRepos) { Start-New-Session -repos $cachedRepos } else { Write-Host "Sync first." -ForegroundColor Red; Start-Sleep 1 } }
-        "3" { Start-Chat-Loop }
-        "6" { Restore-Session }
+        "1" {
+            $cachedRepos = Fetch-RepositoryData
+            Write-Host "Synced $($cachedRepos.Count) repos." -ForegroundColor Green
+            Start-Sleep 1
+        }
+        "2" {
+            if (-not $cachedRepos) {
+                $cachedRepos = Fetch-RepositoryData
+            }
+            if ($cachedRepos) {
+                Start-New-Session -repos $cachedRepos
+            } else {
+                Write-Host " [!] No repositories found. check connection." -ForegroundColor Red
+                Start-Sleep 2
+            }
+        }
+        "3" { if ($global:globalSessionId) { Start-Chat-Loop } else { Write-Host " [!] No active session." -ForegroundColor Red; Start-Sleep 1 } }
+        "4" { Restore-Session }
         "Q" { exit }
         "q" { exit }
     }
