@@ -1,0 +1,10 @@
+# Jules CLI specific
+key
+
+# PowerShell
+*.ps1xml
+*.psm1xml
+
+# System Files
+.DS_Store
+Thumbs.db
