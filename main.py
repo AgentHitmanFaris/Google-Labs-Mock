@@ -8,8 +8,7 @@ import os
 # --- CONFIGURATION ---
 TELEGRAM_TOKEN = "8181482255:AAEwurAqj4M4S8YMARG1WNggRX6h4HLcT8w"
 TELEGRAM_CHAT_ID = "6770953600"
-GIST_URL = "https://gist.github.com/yinqf/66e572da39489c1b2306aa42c88ec6cf"
-
+GIST_URL = "https://gist.github.com/Tdison/6b745663fd038e3c63e0880ecc652bcf"
 # The specific IP you requested to use for all configs
 TARGET_IP = "104.17.148.22"
 
