@@ -42,7 +42,7 @@ def filter_vless_configs(data):
             host = proxy.get('host', '')
             
             # Format: vless://uuid@IP:80/?...#Remark
-            vless_url = (f"vless://{uuid}@104.17.113.188:80/?"
+            vless_url = (f"vless://{uuid}@104.17.148.22:80/?"
                          f"security=none&encryption=none&headerType=none&"
                          f"type=ws&flow=none&host={host}#YTLC.T ")
             
