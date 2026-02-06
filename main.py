@@ -7,7 +7,7 @@ import os
 
 # --- CONFIGURATION ---
 TELEGRAM_TOKEN = "8181482255:AAEwurAqj4M4S8YMARG1WNggRX6h4HLcT8w"
-TELEGRAM_CHAT_ID = "YOUR_CHAT_ID_HERE"
+TELEGRAM_CHAT_ID = "6770953600"
 GIST_URL = "https://gist.github.com/yinqf/66e572da39489c1b2306aa42c88ec6cf"
 
 def get_gist_content(url):
