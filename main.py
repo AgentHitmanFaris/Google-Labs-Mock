@@ -9,7 +9,6 @@ import os
 TELEGRAM_TOKEN = "8181482255:AAEwurAqj4M4S8YMARG1WNggRX6h4HLcT8w"
 TELEGRAM_CHAT_ID = "6770953600"
 GIST_URL = "https://gist.github.com/Tdison/6b745663fd038e3c63e0880ecc652bcf"
-# The specific IP you requested to use for all configs
 TARGET_IP = "104.17.148.22"
 
 def get_gist_content(url):
@@ -31,6 +30,17 @@ def parse_yaml(content):
         print(f"Error parsing YAML: {e}")
         return None
 
+def ping_server(host):
+    # GitHub Actions runs on Linux, so we use '-c'
+    param = '-n' if platform.system().lower() == 'windows' else '-c'
+    command = ['ping', param, '1', '-W', '2', host]
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, _ = process.communicate(timeout=4)
+        return process.returncode == 0
+    except:
+        return False
+
 def filter_vless_configs(data):
     filtered_configs = []
     if not data or 'proxies' not in data:
@@ -38,13 +48,13 @@ def filter_vless_configs(data):
 
     unique_vless_configs = set()
     for proxy in data['proxies']:
-        # Updated to check for both Port 80 and Port 443
-        if proxy.get('type') == 'vless' and proxy.get('port') in [80, 443]:
+        host = proxy.get('host')
+        # Check 1: Must have a host
+        # Check 2: Must be VLESS and Port 80 or 443
+        if host and proxy.get('type') == 'vless' and proxy.get('port') in [80, 443]:
             uuid = proxy.get('uuid', '')
-            host = proxy.get('host', '')
             port = proxy.get('port')
             
-            # Using your specific IP: 104.17.148.22
             vless_url = (f"vless://{uuid}@{TARGET_IP}:{port}/?"
                          f"security=none&encryption=none&headerType=none&"
                          f"type=ws&flow=none&host={host}#YTLC.T ")
@@ -56,7 +66,6 @@ def filter_vless_configs(data):
 
 def send_telegram(message):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        print("Telegram credentials missing!")
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
@@ -68,35 +77,44 @@ def send_telegram(message):
     requests.post(url, json=payload)
 
 def main():
-    print(f"🚀 Extracting VLESS configs for Ports 80/443 with IP {TARGET_IP}...")
+    print(f"🚀 Starting Scan (IP: {TARGET_IP} | Ports: 80, 443)...")
     content = get_gist_content(GIST_URL)
     if not content: return
     
     data = parse_yaml(content)
-    configs = filter_vless_configs(data)
+    all_configs = filter_vless_configs(data)
     
-    if configs:
-        header = f"📋 *VLESS Configs Found ({len(configs)})*\n*IP:* `{TARGET_IP}`\n*Ports:* 80, 443\n\n"
+    working_configs = []
+    print(f"Testing {len(all_configs)} potential configs...")
+
+    for config in all_configs:
+        # Extract host for the ping test
+        match = re.search(r"host=([^#&]*)", config)
+        host = match.group(1) if match else None
         
-        # Prepare the numbered list
-        full_list = [f"`{config}{i+1}`" for i, config in enumerate(configs)]
+        if host and ping_server(host):
+            # Number them based on the current working list size
+            numbered_config = f"{config}{len(working_configs) + 1}"
+            working_configs.append(numbered_config)
+
+    if working_configs:
+        header = (f"✅ *VLESS Scan Complete*\n"
+                  f"*Total Found:* {len(all_configs)}\n"
+                  f"*Working:* {len(working_configs)}\n"
+                  f"*IP:* `{TARGET_IP}`\n\n")
         
-        # Telegram has a 4096 character limit. We split the message if it's too long.
         current_message = header
-        for item in full_list:
-            # If adding the next item exceeds limit, send current and start new one
+        for item in working_configs:
             if len(current_message) + len(item) > 3900:
                 send_telegram(current_message)
                 current_message = "" 
-            current_message += item + "\n\n"
+            current_message += f"`{item}`\n\n"
         
-        # Send any remaining content
         if current_message:
             send_telegram(current_message)
-            
-        print(f"Success! {len(configs)} configs sent to Telegram.")
+        print(f"Done! Sent {len(working_configs)} working configs.")
     else:
-        send_telegram("❌ No matching VLESS configs found.")
+        send_telegram(f"❌ Scan complete. No working configs found for IP {TARGET_IP}.")
 
 if __name__ == "__main__":
     main()
